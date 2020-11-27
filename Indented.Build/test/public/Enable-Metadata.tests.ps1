@@ -1,145 +1,127 @@
-#region:TestFileHeader
-param (
-    [Boolean]$UseExisting
-)
+Describe Enable-Metadata {
+    BeforeAll {
+        Mock Get-Content {
+            '@{
+                Enabled = 1
+                # Disabled = 2
+                # Duplicate = 3
+                ChildNode = @{
+                    # Duplicate = 3
+                }
+            }'
+        }
+        Mock Set-Content
+        Mock Test-Path { $true }
 
-if (-not $UseExisting) {
-    $moduleBase = $psscriptroot.Substring(0, $psscriptroot.IndexOf("\test"))
-    $stubBase = Resolve-Path (Join-Path $moduleBase "test*\stub\*")
-    if ($null -ne $stubBase) {
-        $stubBase | Import-Module -Force
+        $defaultParams = @{
+            PropertyName    = 'Default'
+            Path            = 'TestDrive:\manifest.psd1'
+            WarningVariable = 'warning'
+            WarningAction   = 'SilentlyContinue'
+        }
     }
 
-    Import-Module $moduleBase -Force
-}
-#endregion
-
-InModuleScope Indented.Build {
-    Describe Enable-Metadata {
+    Context 'Value exists and is enabled' {
         BeforeAll {
-            Mock Get-Content {
-                '@{
-                    Enabled = 1
-                    # Disabled = 2
-                    # Duplicate = 3
-                    ChildNode = @{
-                        # Duplicate = 3
-                    }
-                }'
-            }
-            Mock Set-Content
-            Mock Test-Path { $true }
+            Mock Get-Metadata
 
-            $defaultParams = @{
-                PropertyName    = 'Default'
-                Path            = 'TestDrive:\manifest.psd1'
-                WarningVariable = 'warning'
-                WarningAction   = 'SilentlyContinue'
-            }
+            $defaultParams.PropertyName = 'Enabled'
         }
 
-        Context 'Value exists and is enabled' {
-            BeforeAll {
-                Mock Get-Metadata
-
-                $defaultParams.PropertyName = 'Enabled'
-            }
-
-            It 'When the value is present and enabled, returns true' {
-                Enable-Metadata @defaultParams | Should -BeTrue
-            }
-
-            It 'When the value is present and enabled, does not call Get-Content or Set-Content' {
-                Enable-Metadata @defaultParams
-
-                Assert-MockCalled Get-Content -Times 0 -Scope It
-                Assert-MockCalled Set-Content -Times 0 -Scope It
-            }
+        It 'When the value is present and enabled, returns true' {
+            Enable-Metadata @defaultParams | Should -BeTrue
         }
 
-        Context 'Value exists and is commented / disabled' {
-            BeforeAll {
-                Mock Get-Metadata {
-                    throw [System.Management.Automation.ItemNotFoundException]::new('Not found')
-                }
+        It 'When the value is present and enabled, does not call Get-Content or Set-Content' {
+            Enable-Metadata @defaultParams
 
-                $defaultParams.PropertyName = 'Disabled'
+            Assert-MockCalled Get-Content -Times 0 -Scope It
+            Assert-MockCalled Set-Content -Times 0 -Scope It
+        }
+    }
+
+    Context 'Value exists and is commented / disabled' {
+        BeforeAll {
+            Mock Get-Metadata {
+                throw [System.Management.Automation.ItemNotFoundException]::new('Not found')
             }
 
-            It 'When the value has been uncommented, returns true' {
-                Enable-Metadata @defaultParams | Should -BeTrue
-            }
-
-            It 'When the value has been enabled, calls Get-Content and Set-Content' {
-                Enable-Metadata @defaultParams
-
-                Assert-MockCalled Get-Content -Times 1 -Exactly -Scope It
-                Assert-MockCalled Set-Content -Times 1 -Exactly -Scope It
-            }
+            $defaultParams.PropertyName = 'Disabled'
         }
 
-        Context 'Value exists in more than one location' {
-            BeforeAll {
-                Mock Get-Metadata {
-                    throw [System.Management.Automation.ItemNotFoundException]::new('Not found')
-                }
-
-                $defaultParams.PropertyName = 'Duplicate'
-            }
-
-            It 'When the value is ambiguous, returns false' {
-                Enable-Metadata @defaultParams | Should -BeFalse
-            }
-
-            It 'When the value is duplicated, calls Get-Content' {
-                Enable-Metadata @defaultParams
-
-                Assert-MockCalled Get-Content -Times 1 -Exactly -Scope It
-            }
-
-            It 'When the value is duplicated, does not change content' {
-                Enable-Metadata @defaultParams
-
-                Assert-MockCalled Set-Content -Times 0 -Scope It
-            }
-
-            It 'When the value is duplicated, writes a warning' {
-                Enable-Metadata @defaultParams
-
-                $warning | Should -BeLike 'Found more than one*'
-            }
+        It 'When the value has been uncommented, returns true' {
+            Enable-Metadata @defaultParams | Should -BeTrue
         }
 
-        Context 'Value does not exist' {
-            BeforeAll {
-                Mock Get-Metadata {
-                    throw [System.Management.Automation.ItemNotFoundException]::new('Not found')
-                }
+        It 'When the value has been enabled, calls Get-Content and Set-Content' {
+            Enable-Metadata @defaultParams
 
-                $defaultParams.PropertyName = 'DoesNotExist'
+            Assert-MockCalled Get-Content -Times 1 -Exactly -Scope It
+            Assert-MockCalled Set-Content -Times 1 -Exactly -Scope It
+        }
+    }
+
+    Context 'Value exists in more than one location' {
+        BeforeAll {
+            Mock Get-Metadata {
+                throw [System.Management.Automation.ItemNotFoundException]::new('Not found')
             }
 
-            It 'When the value does not exist, returns false' {
-                Enable-Metadata @defaultParams | Should -BeFalse
+            $defaultParams.PropertyName = 'Duplicate'
+        }
+
+        It 'When the value is ambiguous, returns false' {
+            Enable-Metadata @defaultParams | Should -BeFalse
+        }
+
+        It 'When the value is duplicated, calls Get-Content' {
+            Enable-Metadata @defaultParams
+
+            Assert-MockCalled Get-Content -Times 1 -Exactly -Scope It
+        }
+
+        It 'When the value is duplicated, does not change content' {
+            Enable-Metadata @defaultParams
+
+            Assert-MockCalled Set-Content -Times 0 -Scope It
+        }
+
+        It 'When the value is duplicated, writes a warning' {
+            Enable-Metadata @defaultParams
+
+            $warning | Should -BeLike 'Found more than one*'
+        }
+    }
+
+    Context 'Value does not exist' {
+        BeforeAll {
+            Mock Get-Metadata {
+                throw [System.Management.Automation.ItemNotFoundException]::new('Not found')
             }
 
-            It 'When the value does not exist, calls Get-Content' {
-                Enable-Metadata @defaultParams
+            $defaultParams.PropertyName = 'DoesNotExist'
+        }
 
-                Assert-MockCalled Get-Content -Times 1 -Exactly -Scope It
-            }
+        It 'When the value does not exist, returns false' {
+            Enable-Metadata @defaultParams | Should -BeFalse
+        }
 
-            It 'When the value does not exist, does not call Set-Content' {
-                Enable-Metadata @defaultParams
+        It 'When the value does not exist, calls Get-Content' {
+            Enable-Metadata @defaultParams
 
-                Assert-MockCalled Set-Content -Times 0 -Scope It
-            }
+            Assert-MockCalled Get-Content -Times 1 -Exactly -Scope It
+        }
 
-            It 'When the value does not exist, writes a warning' {
-                Enable-Metadata @defaultParams
+        It 'When the value does not exist, does not call Set-Content' {
+            Enable-Metadata @defaultParams
 
-                $warning | Should -BeLike 'Cannot find disabled property*'
-            }
+            Assert-MockCalled Set-Content -Times 0 -Scope It
+        }
+
+        It 'When the value does not exist, writes a warning' {
+            Enable-Metadata @defaultParams
+
+            $warning | Should -BeLike 'Cannot find disabled property*'
         }
     }
 }

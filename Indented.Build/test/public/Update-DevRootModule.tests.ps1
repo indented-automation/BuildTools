@@ -1,58 +1,52 @@
-#region:TestFileHeader
-param (
-    [Boolean]$UseExisting
-)
+Describe Update-DevRootModule -Tag CI {
+    BeforeAll {
+        $guid = New-Guid
+        $tempDrive = Join-Path -Path $env:TEMP -ChildPath $guid
+        New-Item -Path $tempDrive -ItemType Directory
 
-if (-not $UseExisting) {
-    $moduleBase = $psscriptroot.Substring(0, $psscriptroot.IndexOf("\test"))
-    $stubBase = Resolve-Path (Join-Path $moduleBase "test*\stub\*")
-    if ($null -ne $stubBase) {
-        $stubBase | Import-Module -Force
-    }
+        Join-Path -Path $tempDrive -ChildPath 'Module\Module\public' |
+            New-Item -Path { $_ } -ItemType Directory
 
-    Import-Module $moduleBase -Force
-}
-#endregion
+        $filePath = Join-Path -Path $tempDrive -ChildPath 'Module\Module\public\functions.ps1'
+        Set-Content $filePath -Value @(
+            'function Get-Something { }'
+            'function Set-Something { }'
+        )
 
-InModuleScope Indented.Build {
-    Describe Update-DevRootModule -Tag CI {
-        BeforeAll {
-            New-Item TestDrive:\Module\Module\public -ItemType Directory -Force
-            Set-Content TestDrive:\Module\Module\public\functions.ps1 -Value @(
-                'function Get-Something { }'
-                'function Set-Something { }'
-            )
-
-            $defaultParams = @{
-                BuildInfo = [PSCustomObject]@{
-                    ModuleName = 'Module'
-                    Path       = [PSCustomObject]@{
-                        Source = [PSCustomObject]@{
-                            Module = Get-Item (Get-Item 'TestDrive:\Module\Module').FullName
-                        }
+        $defaultParams = @{
+            BuildInfo = [PSCustomObject]@{
+                ModuleName = 'Module'
+                Path       = [PSCustomObject]@{
+                    Source = [PSCustomObject]@{
+                        Module = Join-Path -Path $tempDrive -ChildPath 'Module\Module' | Get-Item
                     }
-                    PSTypeName = 'Indented.BuildInfo'
                 }
+                PSTypeName = 'Indented.BuildInfo'
             }
         }
+    }
 
-        It 'Generates a psm1 file' {
-            Update-DevRootModule @defaultParams
+    AfterAll {
+        Remove-Item -Path $tempDrive -Recurse
+    }
 
-            'TestDrive:\Module\Module\Module.psm1' | Should -Exist
-        }
+    It 'Generates a psm1 file' {
+        Update-DevRootModule @defaultParams
 
-        It 'Dot-sources any files containing code' {
-            Update-DevRootModule @defaultParams
+        Join-Path -Path $tempDrive -ChildPath 'Module\Module\Module.psm1' | Should -Exist
+    }
 
-            'TestDrive:\Module\Module\Module.psm1' | Should -FileContentMatchMultiline '\$public = @\([\s\S]+?functions'
-        }
+    It 'Dot-sources any files containing code' {
+        Update-DevRootModule @defaultParams
 
-        It 'Exports functions from a folder named public' {
-            Update-DevRootModule @defaultParams
+        Join-Path -Path $tempDrive -ChildPath 'Module\Module\Module.psm1' |
+            Should -FileContentMatchMultiline '\$public = @\([\s\S]+?functions'
+    }
 
-            'TestDrive:\Module\Module\Module.psm1' | Should -FileContentMatchMultiline '\$functionsToExport = @\([\s\S]+?Get-Something[\s\S]+?Set-Something'
-        }
+    It 'Exports functions from a folder named public' {
+        Update-DevRootModule @defaultParams
+
+        Join-Path -Path $tempDrive -ChildPath 'Module\Module\Module.psm1' |
+            Should -FileContentMatchMultiline '\$functionsToExport = @\([\s\S]+?Get-Something[\s\S]+?Set-Something'
     }
 }
-

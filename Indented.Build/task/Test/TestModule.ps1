@@ -18,30 +18,27 @@ BuildTask TestModule -Stage Test -Order 3 -Definition {
             }
         }
 
-        # Prevent the default code coverage report appearing.
-        Import-Module Pester
-        & (Get-Module pester) {
-            $definition = Get-Content function:Write-CoverageReport
-            $definition = $definition -replace '(\$report.+Format-Table)', '# $1'
-            Set-Item function:Write-CoverageReport -Value $definition
-        }
-
-        Import-Module $buildInfo.Path.Build.Manifest -Global -ErrorAction Stop
-        $params = @{
-            Script     = @{
-                Path       = $path
-                Parameters = @{
-                    UseExisting = $true
-                }
+        Import-Module $buildInfo.Path.Build.Manifest -Global -ErrorAction Stop -Force
+        $configuration = @{
+            Run          = @{
+                Path     = $path
+                PassThru = $true
             }
-            OutputFile = Join-Path $buildInfo.Path.Build.Output ('{0}-nunit.xml' -f $buildInfo.ModuleName)
-            PassThru   = $true
+            CodeCoverage = @{
+                Enabled    = $true
+                OutputPath = [string](Join-Path -Path $buildInfo.Path.Build.Output -ChildPath pester-codecoverage.xml)
+            }
+            TestResult   = @{
+                Enabled    = $true
+                OutputPath = [string](Join-Path -Path $buildInfo.Path.Build.Output -ChildPath (
+                    '{0}-nunit.xml' -f $buildInfo.ModuleName
+                ))
+            }
+            Output       = @{
+                Verbosity = 'Diagnostic'
+            }
         }
-        if (Test-Path $buildInfo.Path.Build.RootModule) {
-            $params.Add('CodeCoverage', $buildInfo.Path.Build.RootModule)
-            $params.Add('CodeCoverageOutputFile', (Join-Path $buildInfo.Path.Build.Output 'pester-codecoverage.xml'))
-        }
-        Invoke-Pester @params
+        $pester = Invoke-Pester -Configuration $configuration
     }
 
     if ($buildInfo.BuildSystem -eq 'Desktop') {

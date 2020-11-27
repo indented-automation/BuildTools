@@ -1,45 +1,26 @@
-#region:TestFileHeader
-param (
-    [Boolean]$UseExisting
-)
+Describe ConvertTo-ChocoPackage -Tag CI {
+    It 'When an imported module is passed from Get-Module, creates a nupkg' {
+        Get-Module Pester | ConvertTo-ChocoPackage -Path $TestDrive
 
-if (-not $UseExisting) {
-    $moduleBase = $psscriptroot.Substring(0, $psscriptroot.IndexOf("\test"))
-    $stubBase = Resolve-Path (Join-Path $moduleBase "test*\stub\*")
-    if ($null -ne $stubBase) {
-        $stubBase | Import-Module -Force
+        Join-Path -Path $TestDrive -ChildPath 'Pester.*.nupkg' | Should -Exist
     }
 
-    Import-Module $moduleBase -Force
-}
-#endregion
+    It 'When a module is passed from Get-Module -ListAvailable, creates a nupkg' {
+        Get-Module Configuration -ListAvailable | ConvertTo-ChocoPackage -Path $TestDrive
 
-InModuleScope Indented.Build {
-    Describe ConvertTo-ChocoPackage -Tag CI {
-        It 'When an imported module is passed from Get-Module, creates a nupkg' {
-            Get-Module Pester | ConvertTo-ChocoPackage -Path TestDrive:\
+        Join-Path -Path $TestDrive -ChildPath 'Configuration.*.nupkg' | Should -Exist
+    }
 
-            'TestDrive:\Pester.*.nupkg' | Should -Exist
-        }
+    It 'When a module is passed from Find-Module, downloads content and creates a nupkg' {
+        Find-Module Indented.Net.IP | ConvertTo-ChocoPackage -Path $TestDrive
 
-        It 'When a module is passed from Get-Module -ListAvailable, creates a nupkg' {
-            Get-Module Configuration -ListAvailable | ConvertTo-ChocoPackage -Path TestDrive:\
+        Join-Path -Path $TestDrive -ChildPath 'Indented.Net.IP.*.nupkg' | Should -Exist
+    }
 
-            'TestDrive:\Configuration.*.nupkg' | Should -Exist
-        }
+    It 'When a module is passed from Find-Module, and the module has dependencies, downloads module and dependencies' {
+        Find-Module PSModuleDevelopment | ConvertTo-ChocoPackage -Path $TestDrive
 
-        It 'When a module is passed from Find-Module, downloads content and creates a nupkg' {
-            Find-Module Indented.Net.IP | ConvertTo-ChocoPackage -Path TestDrive:\
-
-            'TestDrive:\Indented.Net.IP.*.nupkg' | Should -Exist
-        }
-
-        It 'When a module is passed from Find-Module, and the module has dependencies, downloads module and dependencies' {
-            Find-Module PSModuleDevelopment | ConvertTo-ChocoPackage -Path TestDrive:\
-
-            'TestDrive:\PSModuleDevelopment.*.nupkg' | Should -Exist
-            'TestDrive:\PSFramework.*.nupkg' | Should -Exist
-        }
+        Join-Path -Path $TestDrive -ChildPath 'PSModuleDevelopment.*.nupkg' | Should -Exist
+        Join-Path -Path $TestDrive -ChildPath 'PSFramework.*.nupkg' | Should -Exist
     }
 }
-

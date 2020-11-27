@@ -1,57 +1,55 @@
-#region:TestFileHeader
-param (
-    [Boolean]$UseExisting
-)
+Describe Start-Build -Tag CI {
+    BeforeAll {
+        Write-Host 'Creating tempDrive'
 
-if (-not $UseExisting) {
-    $moduleBase = $psscriptroot.Substring(0, $psscriptroot.IndexOf("\test"))
-    $stubBase = Resolve-Path (Join-Path $moduleBase "test*\stub\*")
-    if ($null -ne $stubBase) {
-        $stubBase | Import-Module -Force
-    }
+        $guid = New-Guid
+        $tempDrive = Join-Path -Path $env:TEMP -ChildPath $guid
 
-    Import-Module $moduleBase -Force
-}
-#endregion
+        Write-Host $tempDrive
 
-InModuleScope Indented.Build {
-    Describe Start-Build -Tag CI {
-        BeforeAll {
-            Mock Export-BuildScript {
-                Set-Content TestDrive:\Module\.build.ps1 -Value @(
-                    'param ( $BuildInfo )'
-                    'Task default { }'
-                )
-            }
+        New-Item -Path $tempDrive -ItemType Directory
+        Join-Path -Path $tempDrive -ChildPath 'Module\Module' |
+            New-Item -Path { $_ } -ItemType Directory
 
-            New-Item TestDrive:\Module\Module -ItemType Directory -Force
+        Write-Host "Test-Path: $(Test-Path $tempDrive)"
 
-            $defaultParams = @{
-                BuildType = 'default'
-                BuildInfo = [PSCustomObject]@{
-                    ModuleName = 'Module'
-                    Path       = [PSCustomObject]@{
-                        ProjectRoot = Get-Item 'TestDrive:\Module'
-                        Source = [PSCustomObject]@{
-                            Module = Get-Item 'TestDrive:\Module\Module'
-                        }
+        Mock Export-BuildScript {
+            $filePath = Join-Path -Path $tempDrive -ChildPath 'Module\.build.ps1'
+
+            Set-Content $filePath -Value @(
+                'param ( $BuildInfo )'
+                'Task default { }'
+            )
+        }
+
+        $defaultParams = @{
+            BuildType = 'default'
+            BuildInfo = [PSCustomObject]@{
+                ModuleName = 'Module'
+                Path       = [PSCustomObject]@{
+                    ProjectRoot = Join-Path -Path $tempDrive -ChildPath 'Module' | Get-Item
+                    Source      = [PSCustomObject]@{
+                        Module = Join-Path -Path $tempDrive -ChildPath 'Module\Module' | Get-Item
                     }
-                    PSTypeName = 'Indented.BuildInfo'
                 }
+                PSTypeName = 'Indented.BuildInfo'
             }
         }
+    }
 
-        It 'Generates a build script to use' {
-            Start-Build @defaultParams
+    AfterAll {
+        Remove-Item -Path $tempDrive -Recurse
+    }
 
-            Assert-MockCalled Export-BuildScript
-        }
+    It 'Generates a build script to use' {
+        Start-Build @defaultParams
 
-        It 'Removes the generated build script' {
-            Start-Build @defaultParams
+        Should -Invoke Export-BuildScript
+    }
 
-            'TestDrive:\Module\.build.ps1' | Should -Not -Exist
-        }
+    It 'Removes the generated build script' {
+        Start-Build @defaultParams
+
+        Join-Path -Path $tempDrive -ChildPath 'Module\.build.ps1' | Should -Not -Exist
     }
 }
-

@@ -1,6 +1,6 @@
-image: Visual Studio 2017
+image: Visual Studio 2019
 
-version: 3.1.2.{build}
+version: 3.1.3.{build}
 
 branches:
   only:
@@ -16,27 +16,24 @@ environment:
 build: false
 
 install:
-  - ps: |
-      $null = Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
-      Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-      Install-Module Configuration, Pester, InvokeBuild -Force
-      Set-Location $env:APPVEYOR_BUILD_FOLDER
-  - pwsh: Set-Location $env:APPVEYOR_BUILD_FOLDER
-
-build_script:
-  - ps: |
-      Invoke-Build .\.build.bootstrap.ps1 -Task Build
-      Invoke-build -Task Setup, Build, Test -BuildInfo (Get-BuildInfo)
-
-test_script:
-  - ps: Invoke-Build -Task Setup, Test -BuildInfo (Get-BuildInfo)
   - pwsh: |
       Install-Module Configuration, Pester, InvokeBuild -Force
-      Import-Module .\build\Indented.Build
+      Set-Location $env:APPVEYOR_BUILD_FOLDER
+
+build_script:
+  - pwsh: |
+      Invoke-Build .\.build.bootstrap.ps1 -Task Build
+      Invoke-Build -Task Setup, Build -BuildInfo (Get-BuildInfo)
+
+test_script:
+  - pwsh: |
+      Import-Module .\build\Indented.Build -Force
       Invoke-Build -Task Setup, Test -BuildInfo (Get-BuildInfo)
 
 on_success:
-  - ps: |
+  - pwsh: |
+      Import-Module .\build\Indented.Build
+
       $buildInfo = Get-BuildInfo
       [Version]$tagVersion = (git describe --tags --abbrev=0 2>$null) -replace "^v"
 
@@ -50,4 +47,3 @@ on_success:
       } else {
           Write-Host "Skipping publish: Last tag does not match build version" -ForegroundColor Yellow
       }
-

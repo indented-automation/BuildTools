@@ -1,7 +1,7 @@
 # Provides a build of the module with minimal validation / discovery.
 
 task Build GetBuildInfo,
-           InstallRequiredModules,
+           UpdateRequiredModules,
            Clean,
            CopyModuleFiles,
            Merge,
@@ -184,7 +184,7 @@ task GetBuildInfo {
 }
 
 
-task InstallRequiredModules {
+task UpdateRequiredModules {
     # Installs the modules required to execute the tasks in this script into current user scope.
 
     $erroractionpreference = 'Stop'
@@ -199,10 +199,10 @@ task InstallRequiredModules {
                 Target    = 'CurrentUser'
             }
 
-            Configuration    = 'latest'
-            Pester           = 'latest'
-            PlatyPS          = 'latest'
-            PSScriptAnalyzer = 'latest'
+            Configuration    = '1.3.1'
+            Pester           = '5.1.0'
+            PlatyPS          = '0.14.0'
+            PSScriptAnalyzer = '1.19.1'
         }
     } catch {
         throw

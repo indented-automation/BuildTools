@@ -8,6 +8,7 @@ function Get-Ast {
 
     [CmdletBinding(DefaultParameterSetName = 'FromPath')]
     [OutputType([System.Management.Automation.Language.ScriptBlockAst])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '')]
     param (
         # The path to a file containing one or more functions.
         [Parameter(Position = 1, ValueFromPipeline, ValueFromPipelineByPropertyName, ParameterSetName = 'FromPath')]

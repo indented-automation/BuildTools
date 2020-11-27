@@ -12,10 +12,10 @@
 RootModule = 'Indented.Build.psm1'
 
 # Version number of this module.
-ModuleVersion = '3.1.2'
+ModuleVersion = '3.1.3'
 
 # Supported PSEditions
-CompatiblePSEditions = @('Core', 'Desktop')
+CompatiblePSEditions = 'Core'
 
 # ID used to uniquely identify this module
 GUID = '80b18c29-d513-43fa-891d-49ba75ed3740'
@@ -33,7 +33,7 @@ Copyright = '(c) Chris Dent 2017'
 Description = 'Indented.Build centralises the build processes / scripts used by my modules.'
 
 # Minimum version of the Windows PowerShell engine required by this module
-PowerShellVersion = '5.1'
+PowerShellVersion = '7.1'
 
 # Name of the Windows PowerShell host required by this module
 # PowerShellHostName = ''
@@ -120,9 +120,3 @@ PrivateData = @{
 # DefaultCommandPrefix = ''
 
 }
-
-
-
-
-
-

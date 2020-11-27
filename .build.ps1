@@ -8,14 +8,10 @@ param (
 
 Set-Alias MSBuild (Resolve-MSBuild) -ErrorAction SilentlyContinue
 
-task default Setup,
-             Build,
-             Test,
-             Publish
-
-task Setup SetBuildInfo,
-           InstallRequiredModules,
-           UpdateAppVeyorVersion
+task default Build,
+             Publish,
+             Setup,
+             Test
 
 task Build Clean,
            TestSyntax,
@@ -24,15 +20,18 @@ task Build Clean,
            UpdateMetadata,
            UpdateMarkdownHelp
 
-task Test TestModuleImport,
-          TestAttributeSyntax,
+task Publish PublishToPSGallery
+
+task Setup SetBuildInfo,
+           UpdateRequiredModules,
+           UpdateAppVeyorVersion
+
+task Test TestAttributeSyntax,
           PSScriptAnalyzer,
           TestModule,
           AddAppveyorCompilationMessage,
           UploadAppVeyorTestResults,
           ValidateTestResults
-
-task Publish PublishToPSGallery
 
 function GetBuildSystem {
     [OutputType([String])]
@@ -451,6 +450,7 @@ function Get-Ast {
 
     [CmdletBinding(DefaultParameterSetName = 'FromPath')]
     [OutputType([System.Management.Automation.Language.ScriptBlockAst])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '')]
     param (
         # The path to a file containing one or more functions.
         [Parameter(Position = 1, ValueFromPipeline, ValueFromPipelineByPropertyName, ParameterSetName = 'FromPath')]
@@ -593,46 +593,48 @@ function Get-BuildItem {
         [Switch]$ExcludeClass
     )
 
-    try {
-        Push-Location $buildInfo.Path.Source.Module
+    process {
+        try {
+            Push-Location $buildInfo.Path.Source.Module
 
-        $itemTypes = [Ordered]@{
-            enumeration    = 'enum*'
-            class          = 'class*'
-            private        = 'priv*'
-            public         = 'pub*'
-            initialisation = 'InitializeModule.ps1'
-        }
-
-        if ($Type -eq 'ShouldMerge') {
-            foreach ($itemType in $itemTypes.Keys) {
-                if ($itemType -ne 'class' -or ($itemType -eq 'class' -and -not $ExcludeClass)) {
-                    Get-ChildItem $itemTypes[$itemType] -Recurse -ErrorAction SilentlyContinue |
-                        Where-Object { -not $_.PSIsContainer -and $_.Extension -eq '.ps1' -and $_.Length -gt 0 } |
-                        Add-Member -NotePropertyName 'BuildItemType' -NotePropertyValue $itemType -PassThru
-                }
+            $itemTypes = [Ordered]@{
+                enumeration    = 'enum*'
+                class          = 'class*'
+                private        = 'priv*'
+                public         = 'pub*'
+                initialisation = 'InitializeModule.ps1'
             }
-        } elseif ($Type -eq 'Static') {
-            [String[]]$exclude = $itemTypes.Values + '*.config', 'test*', 'doc*', 'help', '.build*.ps1', 'build.psd1'
 
-            foreach ($item in Get-ChildItem) {
-                $shouldExclude = $false
-
-                foreach ($exclusion in $exclude) {
-                    if ($item.Name -like $exclusion) {
-                        $shouldExclude = $true
+            if ($Type -eq 'ShouldMerge') {
+                foreach ($itemType in $itemTypes.Keys) {
+                    if ($itemType -ne 'class' -or ($itemType -eq 'class' -and -not $ExcludeClass)) {
+                        Get-ChildItem $itemTypes[$itemType] -Recurse -ErrorAction SilentlyContinue |
+                            Where-Object { -not $_.PSIsContainer -and $_.Extension -eq '.ps1' -and $_.Length -gt 0 } |
+                            Add-Member -NotePropertyName 'BuildItemType' -NotePropertyValue $itemType -PassThru
                     }
                 }
+            } elseif ($Type -eq 'Static') {
+                [String[]]$exclude = $itemTypes.Values + '*.config', 'test*', 'doc*', 'help', '.build*.ps1', 'build.psd1'
 
-                if (-not $shouldExclude) {
-                    $item
+                foreach ($item in Get-ChildItem) {
+                    $shouldExclude = $false
+
+                    foreach ($exclusion in $exclude) {
+                        if ($item.Name -like $exclusion) {
+                            $shouldExclude = $true
+                        }
+                    }
+
+                    if (-not $shouldExclude) {
+                        $item
+                    }
                 }
             }
+        } catch {
+            $pscmdlet.ThrowTerminatingError($_)
+        } finally {
+            Pop-Location
         }
-    } catch {
-        $pscmdlet.ThrowTerminatingError($_)
-    } finally {
-        Pop-Location
     }
 }
 
@@ -877,7 +879,7 @@ task SetBuildInfo -If (
     }
 }
 
-task InstallRequiredModules {
+task UpdateRequiredModules {
     # Installs the modules required to execute the tasks in this script into current user scope.
 
     $erroractionpreference = 'Stop'
@@ -892,10 +894,10 @@ task InstallRequiredModules {
                 Target    = 'CurrentUser'
             }
 
-            Configuration    = 'latest'
-            Pester           = 'latest'
-            PlatyPS          = 'latest'
-            PSScriptAnalyzer = 'latest'
+            Configuration    = '1.3.1'
+            Pester           = '5.1.0'
+            PlatyPS          = '0.14.0'
+            PSScriptAnalyzer = '1.19.1'
         }
     } catch {
         throw
@@ -905,16 +907,18 @@ task InstallRequiredModules {
 task UpdateAppVeyorVersion -If (
 Test-Path (Join-Path $buildInfo.Path.ProjectRoot 'appveyor.yml')
 ) {
-    $versionString = '{0}.{1}.{2}.{{build}}' -f @(
-        $buildInfo.Version.Major
-        $buildInfo.Version.Minor
-        $buildInfo.Version.Build
-    )
+    if (Join-Path $buildInfo.Path.ProjectRoot 'appveyor.yml' | Test-Path) {
+        $versionString = '{0}.{1}.{2}.{{build}}' -f @(
+            $buildInfo.Version.Major
+            $buildInfo.Version.Minor
+            $buildInfo.Version.Build
+        )
 
-    $path = Join-Path $buildInfo.Path.ProjectRoot 'appveyor.yml'
-    $content = Get-Content $path -Raw
-    $content = $content -replace 'version: .+', ('version: {0}' -f $versionString)
-    Set-Content $path -Value $content -NoNewLine
+        $path = Join-Path $buildInfo.Path.ProjectRoot 'appveyor.yml'
+        $content = Get-Content $path -Raw
+        $content = $content -replace 'version: .+', ('version: {0}' -f $versionString)
+        Set-Content $path -Value $content -NoNewLine
+    }
 }
 
 task Clean {
@@ -1225,32 +1229,6 @@ task UpdateMarkdownHelp {
     }
 }
 
-task TestModuleImport {
-    # Test that the module imports.
-
-    $script = {
-        param (
-            $buildInfo
-        )
-
-        $path = Join-Path $buildInfo.Path.Source.Module 'test*'
-
-        if (Test-Path (Join-Path $path 'stub')) {
-            Get-ChildItem (Join-Path $path 'stub') -Filter *.psm1 -Recurse -Depth 1 | ForEach-Object {
-                Import-Module $_.FullName -Global -WarningAction SilentlyContinue
-            }
-        }
-
-        Import-Module $buildInfo.Path.Build.Manifest.FullName -ErrorAction Stop
-    }
-
-    if ($buildInfo.BuildSystem -eq 'Desktop') {
-        Start-Job -ArgumentList $buildInfo -ScriptBlock $script | Receive-Job -Wait -ErrorAction Stop
-    } else {
-        & $script -BuildInfo $buildInfo
-    }
-}
-
 task TestAttributeSyntax {
     # Attempt to test whether or not attributes used within a script contain errors.
     #
@@ -1399,30 +1377,27 @@ task TestModule {
             }
         }
 
-        # Prevent the default code coverage report appearing.
-        Import-Module Pester
-        & (Get-Module pester) {
-            $definition = Get-Content function:Write-CoverageReport
-            $definition = $definition -replace '(\$report.+Format-Table)', '# $1'
-            Set-Item function:Write-CoverageReport -Value $definition
-        }
-
-        Import-Module $buildInfo.Path.Build.Manifest -Global -ErrorAction Stop
-        $params = @{
-            Script     = @{
-                Path       = $path
-                Parameters = @{
-                    UseExisting = $true
-                }
+        Import-Module $buildInfo.Path.Build.Manifest -Global -ErrorAction Stop -Force
+        $configuration = @{
+            Run          = @{
+                Path     = $path
+                PassThru = $true
             }
-            OutputFile = Join-Path $buildInfo.Path.Build.Output ('{0}-nunit.xml' -f $buildInfo.ModuleName)
-            PassThru   = $true
+            CodeCoverage = @{
+                Enabled    = $true
+                OutputPath = [string](Join-Path -Path $buildInfo.Path.Build.Output -ChildPath pester-codecoverage.xml)
+            }
+            TestResult   = @{
+                Enabled    = $true
+                OutputPath = [string](Join-Path -Path $buildInfo.Path.Build.Output -ChildPath (
+                    '{0}-nunit.xml' -f $buildInfo.ModuleName
+                ))
+            }
+            Output       = @{
+                Verbosity = 'Diagnostic'
+            }
         }
-        if (Test-Path $buildInfo.Path.Build.RootModule) {
-            $params.Add('CodeCoverage', $buildInfo.Path.Build.RootModule)
-            $params.Add('CodeCoverageOutputFile', (Join-Path $buildInfo.Path.Build.Output 'pester-codecoverage.xml'))
-        }
-        Invoke-Pester @params
+        $pester = Invoke-Pester -Configuration $configuration
     }
 
     if ($buildInfo.BuildSystem -eq 'Desktop') {

@@ -1,43 +1,23 @@
-#region:TestFileHeader
-param (
-    [Boolean]$UseExisting
-)
+Describe New-ConfigDocument -Tag CI {
+    It 'Creates a build configuration file' {
+        Join-Path -Path $TestDrive -ChildPath 'Module\Module' |
+            New-Item -Path { $_ } -ItemType Directory -Force
 
-if (-not $UseExisting) {
-    $moduleBase = $psscriptroot.Substring(0, $psscriptroot.IndexOf("\test"))
-    $stubBase = Resolve-Path (Join-Path $moduleBase "test*\stub\*")
-    if ($null -ne $stubBase) {
-        $stubBase | Import-Module -Force
-    }
-
-    Import-Module $moduleBase -Force
-}
-#endregion
-
-InModuleScope Indented.Build {
-    Describe New-ConfigDocument -Tag CI {
-        BeforeAll {
-            New-Item TestDrive:\Module\Module -ItemType Directory -Force
-
-            $defaultParams = @{
-                BuildInfo = [PSCustomObject]@{
-                    ModuleName = 'Module'
-                    Path       = [PSCustomObject]@{
-                        ProjectRoot = Get-Item 'TestDrive:\Module'
-                        Source = [PSCustomObject]@{
-                            Module = Get-Item 'TestDrive:\Module\Module'
-                        }
+        $defaultParams = @{
+            BuildInfo = [PSCustomObject]@{
+                ModuleName = 'Module'
+                Path       = [PSCustomObject]@{
+                    ProjectRoot = Join-Path -Path $TestDrive -ChildPath 'Module' | Get-Item
+                    Source = [PSCustomObject]@{
+                        Module = Join-Path -Path $TestDrive -ChildPath 'Module\Module' | Get-Item
                     }
-                    PSTypeName = 'Indented.BuildInfo'
                 }
+                PSTypeName = 'Indented.BuildInfo'
             }
         }
 
-        It 'Creates a build configuration file' {
-            New-ConfigDocument @defaultParams
+        New-ConfigDocument @defaultParams
 
-            'TestDrive:\Module\Module\buildConfig.psd1' | Should -Exist
-        }
+        Join-Path -Path $TestDrive -ChildPath 'Module\Module\buildConfig.psd1' | Should -Exist
     }
 }
-

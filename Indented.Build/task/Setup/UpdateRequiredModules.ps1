@@ -1,4 +1,4 @@
-BuildTask InstallRequiredModules -Stage Setup -Order 1 -Definition {
+BuildTask UpdateRequiredModules -Stage Setup -Order 1 -Definition {
     # Installs the modules required to execute the tasks in this script into current user scope.
 
     $erroractionpreference = 'Stop'
@@ -13,10 +13,10 @@ BuildTask InstallRequiredModules -Stage Setup -Order 1 -Definition {
                 Target    = 'CurrentUser'
             }
 
-            Configuration    = 'latest'
-            Pester           = 'latest'
-            PlatyPS          = 'latest'
-            PSScriptAnalyzer = 'latest'
+            Configuration    = '1.3.1'
+            Pester           = '5.1.0'
+            PlatyPS          = '0.14.0'
+            PSScriptAnalyzer = '1.19.1'
         }
     } catch {
         throw

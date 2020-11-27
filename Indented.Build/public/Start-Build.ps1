@@ -22,25 +22,31 @@ function Start-Build {
         [String]$ScriptName = '.build.ps1'
     )
 
-    foreach ($instance in $BuildInfo) {
-        try {
-            # If a build script exists in the project root, use it.
-            $buildScript = Join-Path $instance.Path.ProjectRoot $ScriptName
+    process {
+        foreach ($instance in $BuildInfo) {
+            try {
+                # If a build script exists in the project root, use it.
+                $buildScript = Join-Path -Path $instance.Path.ProjectRoot -ChildPath $ScriptName
 
-            # Remove the script if it is created by this process. Export-BuildScript can be used to create a persistent script.
-            $shouldClean = $false
-            if (-not (Test-Path $buildScript)) {
-                $instance | Export-BuildScript -Path $buildScript
-                $shouldClean = $true
-            }
+                Write-Host $buildScript
 
-            Import-Module InvokeBuild -Global
-            Invoke-Build -Task $BuildType -File $buildScript -BuildInfo $instance
-        } catch {
-            throw
-        } finally {
-            if ($shouldClean) {
-                Remove-Item $buildScript
+                # Remove the script if it is created by this process. Export-BuildScript can be used to create a persistent script.
+                $shouldClean = $false
+                if (-not (Test-Path $buildScript)) {
+                    Write-Host 'Exporting build script'
+
+                    $instance | Export-BuildScript -Path $buildScript
+                    $shouldClean = $true
+                }
+
+                Write-Host 'Executing build'
+                Invoke-Build -Task $BuildType -File $buildScript -BuildInfo $instance
+            } catch {
+                throw
+            } finally {
+                if ($shouldClean) {
+                    Remove-Item $buildScript
+                }
             }
         }
     }

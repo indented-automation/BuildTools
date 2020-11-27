@@ -28,7 +28,7 @@ function Get-BuildTask {
         if (-not $Name.EndsWith('.ps1') -and -not $Name.EndsWith('*')) {
             $Name += '.ps1'
         }
-        $path = Join-Path $myinvocation.MyCommand.Module.ModuleBase 'task'
+        $path = Join-Path -Path $myinvocation.MyCommand.Module.ModuleBase -ChildPath 'task'
 
         if (-not $Script:buildTaskCache) {
             $Script:buildTaskCache = @{}
@@ -41,7 +41,7 @@ function Get-BuildTask {
 
     process {
         if ($buildInfo) {
-            Push-Location $buildInfo.Path.Source.Module
+            Push-Location -Path $buildInfo.Path.Source.Module
         }
 
         try {
